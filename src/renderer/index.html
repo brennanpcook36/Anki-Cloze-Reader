@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' data: blob:" />
+    <title>Cloze Reader</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="brand">
+        <span class="brand-mark">C</span>
+        <div><strong>Cloze Reader</strong><small id="document-name">No PDF open</small></div>
+      </div>
+      <div class="toolbar-actions">
+        <span id="anki-status" class="status offline">Anki disconnected</span>
+        <span id="ai-status" class="status offline">AI not configured</span>
+        <label class="ai-toggle"><input id="ai-toggle" type="checkbox" checked /><span class="toggle-track"></span><b>AI On</b></label>
+        <button id="retry-button" class="button secondary" hidden>Retry queued</button>
+        <button id="settings-button" class="button secondary">AI Settings</button>
+        <button id="home-button" class="button secondary" hidden>Home</button>
+        <button id="open-button" class="button primary">Open PDF</button>
+      </div>
+    </header>
+
+    <nav class="deck-toolbar" aria-label="Card destination">
+      <label class="deck-control"><strong>Anki deck</strong><select id="deck-select"><option>Default</option></select></label>
+      <span class="deck-help">New cards will be created in this deck</span>
+    </nav>
+
+    <main id="workspace" class="reading-layout">
+        <aside class="library-sidebar">
+          <div class="library-heading"><span class="eyebrow">DOCUMENTS</span><h2>Library</h2></div>
+          <button id="library-import-button" class="button primary library-import">+ Import PDF</button>
+          <div id="library-list" class="library-list"></div>
+          <p id="library-empty" class="sidebar-empty">Imported PDFs will stay here for quick access.</p>
+        </aside>
+        <div id="viewer-column" class="viewer-column">
+          <section id="empty-state" class="empty-state">
+            <div class="empty-icon">PDF</div><h1>Turn reading into recall.</h1>
+            <p>Import a PDF, highlight a useful passage, and press Enter. Your card appears without interrupting your reading.</p>
+            <button id="empty-open-button" class="button primary large">Choose a PDF</button>
+            <div class="steps"><span>1 · Highlight</span><span>2 · Press Enter</span><span>3 · Keep reading</span></div>
+          </section>
+          <section id="reader" class="reader" hidden></section>
+        </div>
+        <aside id="cards-sidebar" class="cards-sidebar">
+          <div class="sidebar-heading"><div><span class="eyebrow">THIS PDF</span><h2>Cards</h2></div><span id="card-count" class="count">0</span></div>
+          <p id="sidebar-empty" class="sidebar-empty">Highlight a passage and press <kbd>Enter</kbd>. Generated cards collect here without interrupting your reading.</p>
+          <div id="cards-list" class="cards-list"></div>
+        </aside>
+    </main>
+
+    <div id="selection-prompt" class="selection-prompt" hidden><kbd>Enter</kbd> Make AI cloze <span>· Esc to cancel</span></div>
+    <div id="library-context-menu" class="context-menu" hidden><button id="rename-menu-button">Rename PDF…</button></div>
+    <dialog id="rename-dialog" class="small-dialog">
+      <form id="rename-form">
+        <div class="dialog-heading"><div><span class="eyebrow">LIBRARY</span><h2>Rename PDF</h2></div><button type="button" id="close-rename" class="icon-button" aria-label="Close">×</button></div>
+        <label>PDF name<input id="rename-input" maxlength="180" required /></label>
+        <div class="dialog-actions"><span class="spacer"></span><button type="button" id="cancel-rename" class="button secondary">Cancel</button><button type="submit" class="button primary">Rename</button></div>
+      </form>
+    </dialog>
+    <dialog id="settings-dialog">
+      <form id="settings-form">
+        <div class="dialog-heading">
+          <div><span class="eyebrow">OPENAI</span><h2>AI settings</h2></div>
+          <button type="button" id="close-settings" class="icon-button" aria-label="Close">×</button>
+        </div>
+        <p class="settings-copy">Cloze Reader uses the OpenAI API to choose the best cloze deletion. Your key is encrypted using macOS credential protection.</p>
+        <label>OpenAI API key<input id="api-key-input" type="password" autocomplete="off" placeholder="sk-…" /></label>
+        <p class="source-label">ChatGPT subscriptions do not include API usage; API billing is managed separately.</p>
+        <div class="dialog-actions"><span class="spacer"></span><button type="submit" class="button primary">Save key</button></div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status"></div>
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>
