@@ -102,6 +102,26 @@ ipcMain.handle("clipboard:read-image", () => {
   return image.isEmpty() ? "" : image.toDataURL();
 });
 
+ipcMain.handle("screenshot:save", async (_event, dataUrl) => {
+  const match = String(dataUrl || "").match(/^data:image\/(png|jpeg|webp);base64,(.+)$/i);
+  if (!match) throw new Error("Unsupported screenshot format.");
+  const bytes = Buffer.from(match[2], "base64");
+  if (bytes.length > 9_000_000) throw new Error("The screenshot is too large to save.");
+  const extension = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+  const id = `${crypto.createHash("sha256").update(bytes).digest("hex")}.${extension}`;
+  const directory = path.join(app.getPath("userData"), "card-images");
+  await fs.mkdir(directory, { recursive: true }); await fs.writeFile(path.join(directory, id), bytes);
+  return id;
+});
+
+ipcMain.handle("screenshot:load", async (_event, id) => {
+  const safeId = String(id || "");
+  if (!/^[a-f0-9]{64}\.(png|jpg|webp)$/.test(safeId)) throw new Error("Invalid screenshot reference.");
+  const bytes = await fs.readFile(path.join(app.getPath("userData"), "card-images", safeId));
+  const mime = safeId.endsWith(".jpg") ? "jpeg" : safeId.split(".").pop();
+  return `data:image/${mime};base64,${bytes.toString("base64")}`;
+});
+
 async function readSettings() {
   try { return JSON.parse(await fs.readFile(path.join(app.getPath("userData"), "settings.json"), "utf8")); }
   catch { return {}; }
@@ -129,29 +149,131 @@ ipcMain.handle("openai:save-key", async (_event, apiKey) => {
   return { configured: true };
 });
 
+function responseText(data) {
+  return String(data.output_text || data.output?.flatMap(item => item.content || []).find(item => item.type === "output_text")?.text || "")
+    .trim().replace(/^```(?:text)?\s*|\s*```$/g, "").trim();
+}
+
+async function requestCloze(apiKey, input) {
+  let requestInput = input;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "gpt-5.6-luna", input: requestInput, reasoning: { effort: "none" }, max_output_tokens: 600 })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message || `OpenAI returned HTTP ${response.status}`);
+    const cloze = responseText(data);
+    if (/\{\{c\d+::.+?\}\}/s.test(cloze)) return { cloze };
+    const correction = `Your previous response was invalid because it did not contain a cloze deletion. Return exactly one sentence containing {{c1::answer}} and nothing else. Previous response: ${cloze || "(empty)"}`;
+    requestInput = typeof input === "string"
+      ? `${input}\n\n${correction}`
+      : [...input, { role: "user", content: [{ type: "input_text", text: correction }] }];
+  }
+  throw new Error("The AI did not return a valid cloze deletion after an automatic retry.");
+}
+
+async function requestClozeBatch(apiKey, initialInput, count) {
+  let input = initialInput;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "gpt-5.6-luna", input, reasoning: { effort: "none" }, max_output_tokens: 4000 })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message || `OpenAI returned HTTP ${response.status}`);
+    const output = responseText(data).replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    try {
+      const cards = JSON.parse(output).cards;
+      const valid = Array.isArray(cards) && cards.length === count && cards.every(card => typeof card === "string" && /\{\{c\d+::.+?\}\}/s.test(card));
+      if (valid && new Set(cards.map(card => card.trim().toLocaleLowerCase())).size === count) return { cards: cards.map(card => card.trim()) };
+    } catch {}
+    input = [...input, { role: "user", content: [{ type: "input_text", text: `The previous response was invalid. Return exactly ${count} distinct cloze strings in the required JSON object and nothing else.` }] }];
+  }
+  throw new Error("The AI could not produce the requested number of distinct cards after an automatic retry.");
+}
+
 ipcMain.handle("openai:generate-cloze", async (_event, payload) => {
   const apiKey = await getApiKey();
   if (!apiKey) throw new Error("OPENAI_KEY_MISSING");
+  const interpretative = payload.mode === "interpretative";
   const prompt = [
     "Create exactly one high-quality Anki cloze card from the selected source passage.",
-    "Choose the most educationally important fact and put only the minimum answer span inside {{c1::...}}.",
-    "The remaining text must make the answer uniquely inferable. Rewrite for clarity when needed, but do not introduce unsupported facts.",
+    interpretative
+      ? "Faithfully rewrite the selected passage into one concise, standalone, testable fact, then put only the minimum key answer inside {{c1::...}}."
+      : "Preserve the selected passage verbatim and only insert {{c1::...}} around its most educationally important answer span. Do not add, remove, reorder, or reword anything.",
+    "Preserve the passage's exact specific knowledge, anatomy, diagnosis, relationships, numbers, directionality, certainty, and qualifiers.",
+    "Do not generalize, add outside knowledge, infer a different teaching point, or change the meaning. If a safe rewrite is not possible, preserve the source wording.",
+    "The visible text must make the answer uniquely inferable and the cloze must test the central knowledge in the selection.",
     "Return only the finished cloze sentence, with no markdown, label, quotation marks, or explanation.",
     `Document: ${payload.fileName}, page ${payload.page}`,
     `Nearby page text: ${payload.context}`,
     `Selected source passage: ${payload.sourceText}`
   ].join("\n\n");
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "gpt-5.6-luna", input: prompt, reasoning: { effort: "low" }, max_output_tokens: 180 })
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message || `OpenAI returned HTTP ${response.status}`);
-  const output = data.output_text || data.output?.flatMap(item => item.content || []).find(item => item.type === "output_text")?.text || "";
-  const cloze = output.trim().replace(/^```(?:text)?\s*|\s*```$/g, "").trim();
-  if (!/\{\{c1::.+?\}\}/s.test(cloze)) throw new Error("The AI response did not contain a valid cloze deletion.");
-  return { cloze };
+  return requestCloze(apiKey, prompt);
+});
+
+ipcMain.handle("openai:generate-screenshot-card", async (_event, payload) => {
+  const apiKey = await getApiKey();
+  if (!apiKey) throw new Error("OPENAI_KEY_MISSING");
+  const imageDataUrl = String(payload.imageDataUrl || "");
+  if (!/^data:image\/(png|jpeg|webp);base64,/i.test(imageDataUrl)) throw new Error("The screenshot format is not supported.");
+  if (imageDataUrl.length > 12_000_000) throw new Error("The screenshot is too large to send.");
+  const prompt = [
+    "Create exactly one concise, standalone Anki cloze card from this PDF screenshot.",
+    "Center the card on the most important specific knowledge visibly supported by the screenshot.",
+    "Preserve exact anatomy, diagnoses, labels, relationships, numbers, directionality, certainty, and qualifiers.",
+    "Do not generalize, add outside knowledge, or infer claims that are not visible in the image.",
+    "Put only the minimum key answer span inside {{c1::...}} and make it uniquely inferable from the remaining text.",
+    "Return only the finished cloze sentence, with no markdown, label, quotation marks, or explanation.",
+    `Document: ${payload.fileName}, page ${payload.page}`
+  ].join("\n\n");
+  return requestCloze(apiKey, [{ role: "user", content: [{ type: "input_text", text: prompt }, { type: "input_image", image_url: imageDataUrl, detail: "high" }] }]);
+});
+
+ipcMain.handle("openai:generate-screenshot-cards", async (_event, payload) => {
+  const apiKey = await getApiKey();
+  if (!apiKey) throw new Error("OPENAI_KEY_MISSING");
+  const imageDataUrl = String(payload.imageDataUrl || ""), count = Math.max(1, Math.min(10, Number(payload.count) || 1));
+  const mode = payload.mode === "interpretative" ? "interpretative" : "verbatim";
+  if (!/^data:image\/(png|jpeg|webp);base64,/i.test(imageDataUrl)) throw new Error("The screenshot format is not supported.");
+  if (imageDataUrl.length > 12_000_000) throw new Error("The screenshot is too large to send.");
+  const existingCards = Array.isArray(payload.existingCards) ? payload.existingCards.slice(0, 25).map(value => String(value).slice(0, 1000)) : [];
+  const prompt = [
+    `Create exactly ${count} additional, distinct Anki cloze cards from this PDF screenshot.`,
+    mode === "interpretative"
+      ? "Faithfully rewrite each visible fact into a concise standalone card. Each card must test a different fact and contain exactly one {{c1::...}} deletion."
+      : "Use wording that appears in the screenshot without introducing or rewriting factual content. Each card must test a different visible fact and contain exactly one {{c1::...}} deletion.",
+    "Preserve exact anatomy, diagnoses, labels, relationships, numbers, directionality, certainty, and qualifiers.",
+    "Do not generalize, add outside knowledge, or duplicate another card in the batch.",
+    existingCards.length ? `Do not duplicate these existing cards:\n${existingCards.map((card, index) => `${index + 1}. ${card}`).join("\n")}` : "There are no existing cards to exclude.",
+    `Return only valid JSON in this exact shape: {"cards":["card 1","card 2"]}. The cards array must contain exactly ${count} strings.`,
+    `Document: ${payload.fileName}, page ${payload.page}`
+  ].join("\n\n");
+  return requestClozeBatch(apiKey, [{ role: "user", content: [{ type: "input_text", text: prompt }, { type: "input_image", image_url: imageDataUrl, detail: "high" }] }], count);
+});
+
+ipcMain.handle("openai:generate-text-cards", async (_event, payload) => {
+  const apiKey = await getApiKey();
+  if (!apiKey) throw new Error("OPENAI_KEY_MISSING");
+  const count = Math.max(1, Math.min(10, Number(payload.count) || 1));
+  const mode = payload.mode === "interpretative" ? "interpretative" : "verbatim";
+  const existingCards = Array.isArray(payload.existingCards) ? payload.existingCards.slice(0, 25).map(value => String(value).slice(0, 1000)) : [];
+  const prompt = [
+    `Create exactly ${count} additional, distinct Anki cloze cards from the selected PDF passage.`,
+    mode === "interpretative"
+      ? "Faithfully rewrite the source into separate concise, standalone facts while preserving its exact specific knowledge and qualifiers."
+      : "Preserve the source wording. Create distinct cards by placing one {{c1::...}} deletion around a different important answer span in each card; do not rewrite the source.",
+    "Each card must contain exactly one cloze deletion, test a different fact, and remain supported by the source.",
+    "Do not generalize, add outside knowledge, change certainty, or duplicate another card in the batch.",
+    existingCards.length ? `Do not duplicate these existing cards:\n${existingCards.map((card, index) => `${index + 1}. ${card}`).join("\n")}` : "There are no existing cards to exclude.",
+    `Return only valid JSON in this exact shape: {"cards":["card 1","card 2"]}. The cards array must contain exactly ${count} strings.`,
+    `Document: ${payload.fileName}, page ${payload.page}`,
+    `Nearby page text: ${String(payload.context || "").slice(0, 5000)}`,
+    `Selected source passage: ${String(payload.sourceText || "").slice(0, 3000)}`
+  ].join("\n\n");
+  return requestClozeBatch(apiKey, [{ role: "user", content: [{ type: "input_text", text: prompt }] }], count);
 });
 
 app.whenReady().then(() => {

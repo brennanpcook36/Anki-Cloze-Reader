@@ -22,6 +22,12 @@ Before creating cards, install AnkiConnect in Anki using add-on code `2055492159
 - Renders selectable text with PDF.js
 - Waits for Enter after a selection, so ordinary text selection is not automatically captured
 - Uses the OpenAI API to choose a concise, high-yield cloze deletion
+- Switches between **Verbatim** wording and a faithful **Interpretative** rewrite from the fixed header
+- Starts screenshot selection by right-clicking a PDF page
+- Creates local Verbatim image-occlusion cards with a blurred front and unblurred back
+- Creates Interpretative cloze cards from a cropped screenshot using the OpenAI vision API, with the source image beneath the generated text on the card front
+- Generates 1–10 additional non-duplicate cards from any completed card and syncs the results to Anki
+- Provides **Sync all** and **Clear all** controls for the current PDF's card list
 - Keeps generated cards in a persistent reading sidebar
 - Keeps the header visible with a persistent AI on/off switch
 - Lets you edit the back after creation and paste images into Anki media
@@ -63,8 +69,15 @@ Repository owners can follow [PUBLISHING.md](PUBLISHING.md) to create downloadab
 1. Open a PDF.
 2. Highlight the passage containing the fact you want to remember.
 3. Press **Enter** to confirm it; press **Escape** to cancel.
-4. With **AI On**, AI selects the most useful answer span. With **AI Off**, the selected text becomes the cloze directly.
-5. The card appears in the right sidebar and is automatically sent to your selected Anki deck.
+4. Choose **Verbatim** to preserve the wording or **Interpretative** to create a concise rewrite that preserves the highlighted knowledge exactly.
+5. With **AI On**, AI selects the most useful answer span. With **AI Off**, the selected text becomes the cloze directly.
+6. The card appears in the right sidebar and is automatically sent to your selected Anki deck.
+
+To create a screenshot card, right-click anywhere on a PDF page, then drag a box around the desired text, image, or diagram. In **Verbatim** mode, drag a second box over the exact answer region to blur it; the unblurred answer appears on the back. In **Interpretative** mode, the selected crop is sent to OpenAI and a specific cloze card is generated from only the visible information; the screenshot appears beneath the generated text on the front. Press **Escape** to cancel screenshot selection.
+
+Choose a number from **More cards** on any completed card and select **Generate more**. Text cards reuse the same passage, screenshot cards reuse the same image, and the generated cards avoid cards already created from that source. New cards sync to Anki automatically or remain queued if Anki is unavailable.
+
+Select **Sync all** above the card list to send every unsynced card for the current PDF to Anki. Select **Clear all** to remove every local card and highlight for the current PDF; cards already synced to Anki are intentionally not deleted from Anki.
 
 Select **Home** in the fixed header to close the current reader without removing the PDF. Click another PDF in the Library to open it. To change a Library title, right-click the PDF, select **Rename PDF…**, enter the new name, and select **Rename**.
 
@@ -78,4 +91,4 @@ Edit and resync cards from the sidebar while continuing to read. If Anki is unav
 
 ## Privacy
 
-The complete PDF remains on your computer. When you confirm a highlight, only the selected passage, nearby sentence, filename, and page number are sent to the OpenAI API for card generation. Your API key is encrypted with Electron's macOS secure-storage facility. Anki synchronization occurs locally through `127.0.0.1:8765`.
+The complete PDF remains on your computer. For text cards, only the selected passage, nearby sentence, filename, and page number are sent to the OpenAI API. For an Interpretative screenshot card, only the cropped and resized selection is sent. Verbatim screenshot occlusion is processed entirely on the Mac and does not use the OpenAI API. Your API key is encrypted with Electron's macOS secure-storage facility. Anki synchronization occurs locally through `127.0.0.1:8765`.

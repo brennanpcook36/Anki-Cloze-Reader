@@ -1,6 +1,6 @@
 {
   "name": "cloze-reader",
-  "version": "0.5.0",
+  "version": "0.6.4",
   "private": true,
   "description": "A private desktop PDF reader that turns highlights into AI-assisted Anki cloze cards.",
   "author": "Brennan Cook",

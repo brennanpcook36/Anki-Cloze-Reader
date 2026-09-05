@@ -9,5 +9,10 @@ contextBridge.exposeInMainWorld("clozeReader", {
   openAIStatus: () => ipcRenderer.invoke("openai:status"),
   saveOpenAIKey: (apiKey) => ipcRenderer.invoke("openai:save-key", apiKey),
   generateCloze: (payload) => ipcRenderer.invoke("openai:generate-cloze", payload),
-  readClipboardImage: () => ipcRenderer.invoke("clipboard:read-image")
+  generateScreenshotCard: (payload) => ipcRenderer.invoke("openai:generate-screenshot-card", payload),
+  generateScreenshotCards: (payload) => ipcRenderer.invoke("openai:generate-screenshot-cards", payload),
+  generateTextCards: (payload) => ipcRenderer.invoke("openai:generate-text-cards", payload),
+  readClipboardImage: () => ipcRenderer.invoke("clipboard:read-image"),
+  saveScreenshot: (dataUrl) => ipcRenderer.invoke("screenshot:save", dataUrl),
+  loadScreenshot: (id) => ipcRenderer.invoke("screenshot:load", id)
 });

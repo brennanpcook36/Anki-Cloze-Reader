@@ -16,6 +16,10 @@
       <div class="toolbar-actions">
         <span id="anki-status" class="status offline">Anki disconnected</span>
         <span id="ai-status" class="status offline">AI not configured</span>
+        <div class="mode-switch" role="group" aria-label="Card wording mode">
+          <button id="verbatim-mode" class="mode-option active" type="button">Verbatim</button>
+          <button id="interpretative-mode" class="mode-option" type="button">Interpretative</button>
+        </div>
         <label class="ai-toggle"><input id="ai-toggle" type="checkbox" checked /><span class="toggle-track"></span><b>AI On</b></label>
         <button id="retry-button" class="button secondary" hidden>Retry queued</button>
         <button id="settings-button" class="button secondary">AI Settings</button>
@@ -39,7 +43,7 @@
         <div id="viewer-column" class="viewer-column">
           <section id="empty-state" class="empty-state">
             <div class="empty-icon">PDF</div><h1>Turn reading into recall.</h1>
-            <p>Import a PDF, highlight a useful passage, and press Enter. Your card appears without interrupting your reading.</p>
+            <p>Highlight text and press Enter, or right-click a page to capture a diagram or image. Your cards appear without interrupting your reading.</p>
             <button id="empty-open-button" class="button primary large">Choose a PDF</button>
             <div class="steps"><span>1 · Highlight</span><span>2 · Press Enter</span><span>3 · Keep reading</span></div>
           </section>
@@ -47,18 +51,32 @@
         </div>
         <aside id="cards-sidebar" class="cards-sidebar">
           <div class="sidebar-heading"><div><span class="eyebrow">THIS PDF</span><h2>Cards</h2></div><span id="card-count" class="count">0</span></div>
+          <div class="cards-toolbar"><button id="sync-all-button" class="mini-button">Sync all</button><button id="clear-all-button" class="mini-button danger-text">Clear all</button></div>
           <p id="sidebar-empty" class="sidebar-empty">Highlight a passage and press <kbd>Enter</kbd>. Generated cards collect here without interrupting your reading.</p>
           <div id="cards-list" class="cards-list"></div>
         </aside>
     </main>
 
-    <div id="selection-prompt" class="selection-prompt" hidden><kbd>Enter</kbd> Make AI cloze <span>· Esc to cancel</span></div>
+    <div id="selection-prompt" class="selection-prompt" hidden><kbd>Enter</kbd> <b id="selection-action">Make verbatim cloze</b> <span>· Esc to cancel</span></div>
+    <div id="screenshot-prompt" class="selection-prompt screenshot-prompt" hidden>Drag a box to capture <span>· Esc to cancel</span></div>
     <div id="library-context-menu" class="context-menu" hidden><button id="rename-menu-button">Rename PDF…</button></div>
     <dialog id="rename-dialog" class="small-dialog">
       <form id="rename-form">
         <div class="dialog-heading"><div><span class="eyebrow">LIBRARY</span><h2>Rename PDF</h2></div><button type="button" id="close-rename" class="icon-button" aria-label="Close">×</button></div>
         <label>PDF name<input id="rename-input" maxlength="180" required /></label>
         <div class="dialog-actions"><span class="spacer"></span><button type="button" id="cancel-rename" class="button secondary">Cancel</button><button type="submit" class="button primary">Rename</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="occlusion-dialog" class="occlusion-dialog">
+      <form id="occlusion-form">
+        <div class="dialog-heading">
+          <div><span class="eyebrow">VERBATIM SCREENSHOT</span><h2>Choose what to hide</h2></div>
+          <button type="button" id="close-occlusion" class="icon-button" aria-label="Close">×</button>
+        </div>
+        <p class="settings-copy">Drag a box over the word, label, or diagram region that should be blurred on the front of the card.</p>
+        <div id="occlusion-stage" class="occlusion-stage"><img id="occlusion-image" alt="Selected PDF area" /><span id="occlusion-box" class="occlusion-box" hidden></span></div>
+        <div class="dialog-actions"><button type="button" id="cancel-occlusion" class="button secondary">Cancel</button><span class="spacer"></span><button id="create-occlusion" type="submit" class="button primary" disabled>Create card</button></div>
       </form>
     </dialog>
     <dialog id="settings-dialog">
