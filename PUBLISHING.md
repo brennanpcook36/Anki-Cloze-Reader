@@ -9,7 +9,7 @@
    ```bash
    git init
    git add .
-   git commit -m "Publish Cloze Reader 0.6.4"
+   git commit -m "Publish Cloze Reader 0.10.0"
    git branch -M main
    git remote add origin https://github.com/YOUR-USERNAME/cloze-reader.git
    git push -u origin main
@@ -22,8 +22,8 @@ Replace `YOUR-USERNAME` with the GitHub username that owns the repository.
 Run:
 
 ```bash
-git tag v0.6.4
-git push origin v0.6.4
+git tag v0.10.0
+git push origin v0.10.0
 ```
 
 The included GitHub Actions workflow installs dependencies, runs the tests, builds Intel and Apple Silicon `.dmg` and `.zip` downloads, and creates a GitHub Release automatically. Watch its progress under the repository's **Actions** tab. Downloads appear under **Releases** when the job succeeds.

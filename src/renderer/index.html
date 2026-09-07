@@ -14,22 +14,32 @@
         <div><strong>Cloze Reader</strong><small id="document-name">No PDF open</small></div>
       </div>
       <div class="toolbar-actions">
-        <span id="anki-status" class="status offline">Anki disconnected</span>
-        <span id="ai-status" class="status offline">AI not configured</span>
+        <button id="home-button" class="button secondary" hidden>Home</button>
+        <button id="open-button" class="button primary">Open PDF</button>
+        <button id="bulk-open" class="button secondary">Bulk create</button>
         <div class="mode-switch" role="group" aria-label="Card wording mode">
           <button id="verbatim-mode" class="mode-option active" type="button">Verbatim</button>
           <button id="interpretative-mode" class="mode-option" type="button">Interpretative</button>
         </div>
+        <div class="profile-control" role="group" aria-label="Study Profile">
+          <span class="profile-label">Study Profile</span>
+          <select id="profile-select" aria-label="Active Study Profile"><option value="">Off</option></select>
+          <button id="profile-button" type="button" aria-label="Manage Study Profiles" title="Create or edit Study Profiles">Edit</button>
+        </div>
         <label class="ai-toggle"><input id="ai-toggle" type="checkbox" checked /><span class="toggle-track"></span><b>AI On</b></label>
-        <button id="retry-button" class="button secondary" hidden>Retry queued</button>
+        <span id="ai-status" class="status offline">AI not configured</span>
         <button id="settings-button" class="button secondary">AI Settings</button>
-        <button id="home-button" class="button secondary" hidden>Home</button>
-        <button id="open-button" class="button primary">Open PDF</button>
       </div>
     </header>
 
     <nav class="deck-toolbar" aria-label="Card destination">
       <label class="deck-control"><strong>Anki deck</strong><select id="deck-select"><option>Default</option></select></label>
+      <button id="new-deck" class="button secondary">+ New deck</button>
+      <button id="open-anki" class="button secondary">Open Anki</button>
+      <button id="refresh-anki" class="button secondary">Refresh Anki</button>
+      <span id="anki-status" class="status offline">Anki disconnected</span>
+      <button id="retry-button" class="button secondary" hidden>Retry queued</button>
+      <label class="ai-toggle"><input id="auto-sync" type="checkbox"><span class="toggle-track"></span><b>Auto sync</b></label>
       <span class="deck-help">New cards will be created in this deck</span>
     </nav>
 
@@ -51,7 +61,7 @@
         </div>
         <aside id="cards-sidebar" class="cards-sidebar">
           <div class="sidebar-heading"><div><span class="eyebrow">THIS PDF</span><h2>Cards</h2></div><span id="card-count" class="count">0</span></div>
-          <div class="cards-toolbar"><button id="sync-all-button" class="mini-button">Sync all</button><button id="clear-all-button" class="mini-button danger-text">Clear all</button></div>
+          <div class="cards-toolbar"><button id="sync-all-button" class="mini-button">Sync all</button><button id="undo-remove" class="mini-button" disabled>Undo removal</button><button id="clear-all-button" class="mini-button danger-text">Clear all</button></div>
           <p id="sidebar-empty" class="sidebar-empty">Highlight a passage and press <kbd>Enter</kbd>. Generated cards collect here without interrupting your reading.</p>
           <div id="cards-list" class="cards-list"></div>
         </aside>
@@ -59,7 +69,15 @@
 
     <div id="selection-prompt" class="selection-prompt" hidden><kbd>Enter</kbd> <b id="selection-action">Make verbatim cloze</b> <span>· Esc to cancel</span></div>
     <div id="screenshot-prompt" class="selection-prompt screenshot-prompt" hidden>Drag a box to capture <span>· Esc to cancel</span></div>
-    <div id="library-context-menu" class="context-menu" hidden><button id="rename-menu-button">Rename PDF…</button></div>
+    <div id="library-context-menu" class="context-menu" hidden><button id="open-page-menu-button">Open at page…</button><button id="rename-menu-button">Rename PDF…</button></div>
+    <dialog id="open-page-dialog" class="small-dialog">
+      <form id="open-page-form">
+        <div class="dialog-heading"><div><span class="eyebrow">LIBRARY</span><h2>Open at page</h2></div><button type="button" id="close-open-page" class="icon-button" aria-label="Close">×</button></div>
+        <p class="settings-copy">Enter the PDF page number. This may differ from the page number printed in the document.</p>
+        <label>PDF page<input id="open-page-input" type="number" min="1" step="1" required /></label>
+        <div class="dialog-actions"><span class="spacer"></span><button type="button" id="cancel-open-page" class="button secondary">Cancel</button><button type="submit" class="button primary">Open page</button></div>
+      </form>
+    </dialog>
     <dialog id="rename-dialog" class="small-dialog">
       <form id="rename-form">
         <div class="dialog-heading"><div><span class="eyebrow">LIBRARY</span><h2>Rename PDF</h2></div><button type="button" id="close-rename" class="icon-button" aria-label="Close">×</button></div>
@@ -92,7 +110,12 @@
       </form>
     </dialog>
 
-    <div id="toast" class="toast" role="status"></div>
+    <dialog id="deck-dialog"><form id="deck-form" style="padding:24px"><h2>New Anki deck</h2><input id="deck-name" required maxlength="180" placeholder="Radiology::Neuroradiology" aria-label="Deck name"><button id="create-deck" class="button primary">Create deck</button><button id="cancel-deck" type="button" class="button secondary">Cancel</button></form></dialog>
+    <dialog id="preview-dialog"><div style="padding:24px"><button id="close-preview" class="button secondary">Close preview</button><h3>Front</h3><div id="preview-front"></div><h3>Back</h3><div id="preview-back"></div></div></dialog>
+    <dialog id="profile-dialog"><form id="profile-form" class="feature-form"><h2>Study Profiles</h2><p>Describe your role, goal, and preferences. Active profiles are sent to OpenAI with Interpretative requests.</p><select id="profile-editor-select" aria-label="Profile to edit"></select><label>Name<input id="profile-name" maxlength="60" required></label><label>Study description<textarea id="profile-description" maxlength="2000" required placeholder="I am a radiology resident studying for boards. Emphasize imaging findings and distinguishing features."></textarea></label><button class="button primary">Save and activate</button><button type="button" id="profile-delete" class="button secondary">Delete profile</button><button type="button" id="profile-close" class="button secondary">Close</button></form></dialog>
+<dialog id="improve-dialog"><form id="improve-form" class="feature-form"><h2>Improve this card</h2><p>Review proposed changes before applying. Split cards are added as drafts; the original is retained.</p><label>Instructions<textarea id="improve-instructions" required maxlength="2000" placeholder="Focus on the imaging finding and shorten the answer."></textarea></label><label>Output<select id="improve-count"><option value="1">Revise this card</option><option value="2">Split into 2 cards</option><option value="3">Split into 3 cards</option><option value="4">Split into 4 cards</option></select></label><button id="improve-generate" class="button primary">Generate proposal</button><button id="improve-close" type="button" class="button secondary">Close</button><p id="improve-status" role="status"></p><div id="improve-results"></div><button id="improve-apply" type="button" class="button primary" hidden>Apply reviewed changes</button></form></dialog>
+<dialog id="bulk-dialog"><form id="bulk-form" class="feature-form"><h2>Bulk create</h2><p id="bulk-document"></p><p>Use PDF page numbers, which may differ from the printed page numbers. Up to 30 pages and 50 cards per batch. All cards remain drafts.</p><label>PDF page range<input id="bulk-range" required placeholder="20–28" pattern="[0-9]+\s*([-–]\s*[0-9]+)?"></label><label>Card count<select id="bulk-count-mode"><option value="fixed">Up to a number I choose</option><option value="auto">Let AI decide</option></select></label><label><span id="bulk-limit-label">Maximum cards</span><input id="bulk-limit" type="number" min="1" max="50" value="10" required></label><label>Mode<select id="bulk-mode"><option value="verbatim">Verbatim</option><option value="interpretative">Interpretative</option></select></label><p id="bulk-profile"></p><label><span><input id="bulk-images" type="checkbox"> Include diagrams and images</span></label><p>This option sends resized page images as well as extracted text and uses more API credits. Generated cards can include the page image.</p><button id="bulk-start" class="button primary">Generate drafts</button><button id="bulk-stop" type="button" class="button secondary" disabled>Stop after current section</button><button id="bulk-close" type="button" class="button secondary">Close</button><p id="bulk-status" role="status"></p><div class="cards-toolbar"><button id="bulk-select-all" type="button" class="mini-button">Select all</button><button id="bulk-select-none" type="button" class="mini-button">Select none</button><button id="bulk-sync" type="button" class="mini-button">Sync selected</button></div><div id="bulk-results"></div></form></dialog>
+<div id="toast" class="toast" role="status"></div>
     <script type="module" src="app.mjs"></script>
   </body>
 </html>
